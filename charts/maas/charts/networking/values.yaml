@@ -1,0 +1,4 @@
+useSelfSignedClusterIssuer: false
+
+global:
+  localClusterDomain: apps.example.com

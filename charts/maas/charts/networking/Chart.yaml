@@ -1,0 +1,5 @@
+apiVersion: v2
+name: networking
+description: Networking resources for MaaS
+type: application
+version: 0.1.0

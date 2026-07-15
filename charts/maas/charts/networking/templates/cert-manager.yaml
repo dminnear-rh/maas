@@ -1,0 +1,32 @@
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#  name: selfsigned-cluster-issuer
+# spec:
+#  selfSigned: {}
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: Certificate
+# metadata:
+#   name: openshift-ai-inference-ingress-cert
+#   namespace: openshift-ingress
+# spec:
+#   secretName: oai-cert
+#   issuerRef:
+#     name: selfsigned-cluster-issuer
+#     kind: ClusterIssuer
+#   dnsNames:
+#     - openshift-ai-inference.{{ .Values.global.localClusterDomain }}
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: Certificate
+# metadata:
+#   name: maas-ingress-cert
+#   namespace: openshift-ingress
+# spec:
+#   secretName: maas-cert
+#   issuerRef:
+#     name: selfsigned-cluster-issuer
+#     kind: ClusterIssuer
+#   dnsNames:
+#     - maas.{{ .Values.global.localClusterDomain }}

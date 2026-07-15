@@ -1,0 +1,51 @@
+clusterGroup:
+  name: prod
+
+  namespaces:
+    external-secrets:
+    external-secrets-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    maas:
+    vault:
+    redhat-ods-operator:
+        operatorGroup: true
+        targetNamespaces: []
+    openshift-lws-operator:
+      operatorGroup: true
+      targetNamespaces:
+        - openshift-lws-operator
+    kuadrant-system:
+
+  subscriptions:
+    eso:
+      name: openshift-external-secrets-operator
+      namespace: external-secrets-operator
+      channel: stable-v1
+    rhods-operator:
+      name: rhods-operator
+      namespace: redhat-ods-operator
+      channel: stable-3.4
+    kuadrant:
+      name: rhcl-operator
+      namespace: kuadrant-system
+    lws:
+      name: leader-worker-set
+      namespace: openshift-lws-operator
+      channel: stable-v1.0
+
+  applications:
+    maas:
+      name: maas
+      namespace: maas
+      path: charts/maas
+    openshift-external-secrets:
+      name: openshift-external-secrets
+      namespace: external-secrets
+      chart: openshift-external-secrets
+      chartVersion: 0.0.*
+    vault:
+      name: vault
+      namespace: vault
+      chart: hashicorp-vault
+      chartVersion: 0.1.*

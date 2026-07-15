@@ -1,0 +1,9 @@
+global:
+  pattern: maas
+  singleArgoCD: true
+
+main:
+  variant: prod
+  multiSourceConfig:
+    enabled: true
+    clusterGroupChartVersion: 0.9.*

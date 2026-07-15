@@ -1,0 +1,63 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: openshift-default
+spec:
+  controllerName: openshift.io/gateway-controller/v1
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: openshift-ai-inference
+  namespace: openshift-ingress
+  labels:
+    opendatahub.io/managed: "false"
+  annotations:
+    opendatahub.io/managed: "false"
+    # cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  gatewayClassName: openshift-default
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: openshift-ai-inference.{{ .Values.global.localClusterDomain }}
+      tls:
+        # certificateRefs:
+        # - group: ""
+        #   kind: Secret
+        #   name: oai-cert
+        mode: Terminate
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: maas-default-gateway
+  namespace: openshift-ingress
+  labels:
+    opendatahub.io/managed: "false"
+  annotations:
+    opendatahub.io/managed: "false"
+    security.opendatahub.io/authorino-tls-bootstrap: "true"
+    # {{- if .Values.useSelfSignedClusterIssuer }}
+    # cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+    # {{- end }}
+spec:
+  gatewayClassName: openshift-default
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: maas.{{ .Values.global.localClusterDomain }}
+      tls:
+        # certificateRefs:
+        # - group: ""
+        #   kind: Secret
+        #   name: maas-cert
+        mode: Terminate
+      allowedRoutes:
+        namespaces:
+          from: All
