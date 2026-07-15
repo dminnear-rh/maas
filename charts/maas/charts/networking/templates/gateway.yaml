@@ -14,7 +14,6 @@ metadata:
     opendatahub.io/managed: "false"
   annotations:
     opendatahub.io/managed: "false"
-    # cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
 spec:
   gatewayClassName: openshift-default
   listeners:
@@ -23,10 +22,10 @@ spec:
       protocol: HTTPS
       hostname: openshift-ai-inference.{{ .Values.global.localClusterDomain }}
       tls:
-        # certificateRefs:
-        # - group: ""
-        #   kind: Secret
-        #   name: oai-cert
+        certificateRefs:
+        - group: ""
+          kind: Secret
+          name: router-certs-default
         mode: Terminate
       allowedRoutes:
         namespaces:
@@ -42,9 +41,6 @@ metadata:
   annotations:
     opendatahub.io/managed: "false"
     security.opendatahub.io/authorino-tls-bootstrap: "true"
-    # {{- if .Values.useSelfSignedClusterIssuer }}
-    # cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
-    # {{- end }}
 spec:
   gatewayClassName: openshift-default
   listeners:
@@ -53,10 +49,10 @@ spec:
       protocol: HTTPS
       hostname: maas.{{ .Values.global.localClusterDomain }}
       tls:
-        # certificateRefs:
-        # - group: ""
-        #   kind: Secret
-        #   name: maas-cert
+        certificateRefs:
+        - group: ""
+          kind: Secret
+          name: router-certs-default
         mode: Terminate
       allowedRoutes:
         namespaces:
