@@ -1,0 +1,26 @@
+apiVersion: dscinitialization.opendatahub.io/v2
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  monitoring:
+    metrics:
+      replicas: 1
+      storage:
+        retention: 90d
+        size: 5Gi
+---
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    dashboard:
+      managementState: Managed
+    kserve:
+      managementState: Managed
+      modelsAsService:
+        managementState: Managed
+    llamastackoperator:
+      managementState: Managed
