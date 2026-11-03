@@ -1,0 +1,209 @@
+clusterGroup:
+  name: prod
+
+  namespaces:
+    external-secrets:
+    external-secrets-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    vault:
+    openshift-devspaces:
+    cert-manager-operator:
+      operatorGroup: true
+      targetNamespaces: []
+    lls-demo:
+    rocketchat:
+    llm:
+
+  subscriptions:
+    cert-manager:
+      name: openshift-cert-manager-operator
+      channel: stable-v1
+    eso:
+      name: openshift-external-secrets-operator
+      namespace: external-secrets-operator
+      channel: stable-v1
+
+  applications:
+    openshift-external-secrets:
+      name: openshift-external-secrets
+      namespace: external-secrets
+      chart: openshift-external-secrets
+      chartVersion: 0.0.*
+
+    vault:
+      name: vault
+      namespace: vault
+      chart: hashicorp-vault
+      chartVersion: 0.1.*
+
+    cloudnative-pg:
+      name: cloudnative-pg
+      namespace: default
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/cloudnative-pg
+
+    cluster-observability:
+      name: cluster-observability
+      namespace: openshift-cluster-observability-operator
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/install-operators
+      extraValueFiles:
+      - /variants/prod/overrides/cluster-observability.yaml
+
+    devspaces:
+      name: devspaces
+      namespace: openshift-devspaces
+      repoURL: https://github.com/rhpds/private-maas-automation
+      chartVersion: main
+      path: infra/devspaces
+
+    devspaces-operator:
+      name: devspaces-operator
+      namespace: openshift-operators
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/install-operators
+      extraValueFiles:
+      - /variants/prod/overrides/devspaces-operator.yaml
+
+    gateway-api:
+      name: gateway-api
+      namespace: openshift-ingress
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/gateway-api
+      extraValueFiles:
+      - /variants/prod/overrides/gateway-api.yaml
+
+    leaderworkerset:
+      name: leaderworkerset
+      namespace: openshift-lws-operator
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/leaderworkerset
+
+    monitoring:
+      name: monitoring
+      namespace: default
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/monitoring
+
+    monitoring-rbac:
+      name: monitoring-rbac
+      repoURL: https://github.com/rhpds/private-maas-automation
+      targetRevision: main
+      path: infra/monitoring-rbac
+      kustomize: true
+
+    nvidia-gpu-enablement:
+      name: nvidia-gpu-enablement
+      namespace: default
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/nvidia-gpu-enablement
+
+    openshift-ai:
+      name: openshift-ai
+      namespace: redhat-ods-operator
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/openshift-ai
+      extraValueFiles:
+      - /variants/prod/overrides/openshift-ai.yaml
+      overrides:
+      - name: gateways.openshiftAiInference.hostname
+        value: inference.{{ $.Values.global.localClusterDomain }}
+      - name: gateways.openshiftAiInference.certificate.clusterIssuer
+        value: ca-issuer
+      - name: gateways.maasDefaultGateway.hostname
+        value: maas.{{ $.Values.global.localClusterDomain }}
+      - name: gateways.maasDefaultGateway.certificate.clusterIssuer
+        value: ca-issuer
+      ignoreDifferences:
+      - group: postgresql.cnpg.io
+        kind: Cluster
+        jqPathExpressions:
+        - .spec.managed.roles[].connectionLimit
+        - .spec.managed.roles[].ensure
+        - .spec.managed.roles[].inherit
+
+    opentelemetry:
+      name: opentelemetry
+      namespace: openshift-operators
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/install-operators
+      extraValueFiles:
+      - /variants/prod/overrides/opentelemetry.yaml
+
+    rhcl:
+      name: rhcl
+      namespace: kuadrant-system
+      repoURL: https://github.com/jharmison-redhat/openshift-setup
+      chartVersion: 98b94f4694d0e71eca743228066ccf9b8c6fe1ca
+      path: charts/rhcl
+      extraValueFiles:
+      - /variants/prod/overrides/rhcl.yaml
+
+    selfsigned-ca-clusterissuer:
+      name: selfsigned-ca-clusterissuer
+      repoURL: https://github.com/rhpds/private-maas-automation
+      targetRevision: main
+      path: infra/selfsigned-ca-clusterissuer
+      kustomize: true
+
+    kubernetes-mcp-server:
+      name: kubernetes-mcp-server
+      namespace: lls-demo
+      repoURL: oci://ghcr.io/containers/charts/kubernetes-mcp-server
+      chartVersion: 0.1.0
+      path: .
+      extraValueFiles:
+      - /variants/prod/overrides/kubernetes-mcp-server.yaml
+
+    models:
+      name: models
+      namespace: llm
+      repoURL: https://github.com/rhpds/private-maas-automation
+      chartVersion: main
+      path: platform/models
+
+    models-as-a-service:
+      name: models-as-a-service
+      namespace: redhat-ods-applications
+      repoURL: https://github.com/rhpds/private-maas-automation
+      chartVersion: main
+      path: platform/models-as-a-service
+      ignoreDifferences:
+      - kind: Group
+        group: user.openshift.io
+        jsonPointers:
+        - /users
+
+    rocketchat:
+      name: rocketchat
+      namespace: rocketchat
+      repoURL: https://github.com/rhpds/private-maas-automation
+      chartVersion: main
+      path: platform/rocketchat
+      extraValueFiles:
+      - /variants/prod/overrides/rocketchat.yaml
+      overrides:
+      - name: host
+        value: rocketchat.{{ $.Values.global.localClusterDomain }}
+
+    rocketchat-mcp:
+      name: rocketchat-mcp
+      namespace: lls-demo
+      repoURL: https://github.com/rhpds/private-maas-automation
+      chartVersion: main
+      path: platform/rocketchat-mcp
+      overrides:
+      - name: rocketchat.url
+        value: http://rocketchat-rocketchat.rocketchat.svc.cluster.local
+      - name: rocketchat.existingSecret
+        value: rocketchat-mcp-credentials

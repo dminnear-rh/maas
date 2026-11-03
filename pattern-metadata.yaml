@@ -1,0 +1,40 @@
+# This goal of this metadata is mainly used as a source of truth for
+# documentation and qe.
+metadata_version: "1.0"
+name: maas
+pattern_version: "1.0"
+description: A basic Models-as-a-Service implementation in RHOAI 3.5
+display_name: Models-as-a-Service in RHOAI 3
+repo_url: https://github.com/validatedpatterns/maas
+docs_repo_url: https://github.com/validatedpatterns/docs
+issues_url: https://github.com/validatedpatterns/maas/issues
+docs_url: https://validatedpatterns.io/patterns/maas/
+ci_url: https://validatedpatterns.io/ci/?pattern=maas
+# can be sandbox, tested or maintained
+tier: sandbox
+owners: dminnear-rh
+requirements:
+  hub: # Main cluster
+    compute:
+      platform:
+        aws:
+          replicas: 3
+          type: m5.2xlarge
+    controlPlane:
+      platform:
+        aws:
+          replicas: 3
+          type: m5.xlarge
+
+# Loosely defined extra features like hypershift support, non-openshift
+# kubernetes support, spoke support
+extra_features:
+  hypershift_support: true
+  spoke_support: false
+
+external_requirements:
+  # This gets added as a note in the cluster sizing doc page
+  cluster_sizing_note: >
+    This pattern will require a node with a 24 GiB VRAM Nvidia GPU tainted with
+    nvidia.com/gpu=l40-gpu. (Tested with g6e.2xlarge on AWS.)
+# external quay, s3 bucket, agof tokens to access paywalled material, manifests, rag-llm hw (only selected regions)
