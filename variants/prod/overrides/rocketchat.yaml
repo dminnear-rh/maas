@@ -1,0 +1,56 @@
+# Values from platform/bootstrap; credentials below are the source bootstrap defaults.
+ingress:
+  enabled: false
+route:
+  enabled: true
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 300m
+    memory: 512Mi
+mongodb:
+  enabled: false
+  storage:
+    requests: 5Gi
+    storageClassName: ''
+nats:
+  nats:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+podMonitor:
+  enabled: true
+  interval: 30s
+extraEnv:
+- name: ADMIN_USERNAME
+  value: admin
+- name: ADMIN_PASS
+  value: changeme
+- name: ADMIN_EMAIL
+  value: admin@example.com
+botUser:
+  enabled: true
+  adminUsername: admin
+  adminPassword: changeme
+  username: mcp-bot
+  name: MCP Bot
+  email: mcp-bot@example.com
+  password: mcp-bot-password
+  mcpNamespace: lls-demo
+  secretName: rocketchat-mcp-credentials
+  rocketchatUrl: http://rocketchat-rocketchat.rocketchat.svc.cluster.local
+  createWorkshopChannel: true
+  workshopChannelName: workshop
+  workshopChannelTopic: Private Model as a Service
+  workshopChannelDescription: Channel for workshop participants to see messages from their AI agents
+  workshopWelcomeMessage: Welcome to the AI Agents Workshop! Your AI agents can post messages here using
+    the MCP Rocket.Chat integration. Try asking your agent to send a message to this channel!

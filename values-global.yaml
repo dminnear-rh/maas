@@ -1,7 +1,8 @@
 global:
   pattern: maas
   singleArgoCD: true
-
+  secretLoader:
+    disabled: true
 main:
   variant: prod
   multiSourceConfig:
