@@ -233,3 +233,30 @@ def rocket_message(rocketchat_mcp, rocket_admin):
             assert not any(tag in message.get("text", "") for message in history()), (
                 "Rocket.Chat test message remains after cleanup"
             )
+
+
+@pytest.fixture
+def tenant_identity(openshift_dyn_client):
+    """Use the actual HTPasswd tenant; revoke its temporary OAuth token on exit."""
+    __tracebackhide__ = True
+    from .tenant_helpers import provision, runtime
+
+    kube, config = runtime(openshift_dyn_client)
+    credentials = provision.decode(kube.secret(config['controlNamespace'], 'tenant-credentials'))
+    try:
+        with provision.tenant_login(kube, config['username'], credentials['password'], 60) as token:
+            bootstrap = openshift_dyn_client.client.configuration
+            with provision.session(bootstrap.ssl_ca_cert or True) as http:
+                http.headers['Authorization'] = 'Bearer ' + token
+                # Construct a separate client with only the tenant token for exec.
+                tenant_config = client.Configuration()
+                tenant_config.host = bootstrap.host
+                tenant_config.ssl_ca_cert = bootstrap.ssl_ca_cert
+                tenant_config.verify_ssl = True
+                tenant_config.api_key = {'authorization': token}
+                tenant_config.api_key_prefix = {'authorization': 'Bearer'}
+                with client.ApiClient(tenant_config) as api_client:
+                    yield {'kube': kube, 'config': config, 'http': http,
+                           'host': bootstrap.host.rstrip('/'), 'api_client': api_client}
+    except (provision.ProvisionError, requests.RequestException, client.ApiException) as error:
+        pytest.fail(f'Tenant authentication or API check failed ({type(error).__name__})', pytrace=False)

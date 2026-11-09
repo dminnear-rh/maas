@@ -76,16 +76,28 @@ VP_HUBCONFIG="/path/to/kubeconfig" \
 ./pattern.sh make run-ci-tests
 ```
 
-### Future dedicated user
+### Persistent tenant
 
-A persistent non-admin OpenShift login user needs an identity provider and
-credentials provisioned through secret management. The referenced tenant charts
-create workspaces and group membership, but do not create OpenShift login
-credentials. A Kubernetes User object alone does not enable login. Start with
-the existing free subscription through `system:authenticated`; grant additional
-namespace permissions only as later tests require them. Keep bootstrap resource
-management separate from that user's MaaS operations. This change does not add
-an identity provider or persistent user to the pattern.
+The production suite also includes `test_tenant_*` checks for the pattern-managed
+`user1` tenant. Deploy the tenant applications and load secrets first. These
+checks fail if the tenant is missing, the workspace is stopped, or any component
+is unhealthy. Existing temporary service-account tests continue to exercise the
+free subscription independently.
+
+Tenant checks log in through OpenShift OAuth, verify namespace edit permissions
+and denial of administrative access, mint and revoke a temporary premium MaaS
+key, and execute inference **inside the DevWorkspace using the tenant's API
+client**. They also call the playground and log into Rocket.Chat as the tenant.
+Bootstrap access reads configuration and credentials and creates loopback service
+tunnels. The tenant token performs its own permission checks and workspace exec.
+Temporary OAuth tokens, MaaS keys, and Rocket.Chat test sessions are revoked.
+
+Run these checks with the normal CI command above. Run the offline lifecycle and
+Helm checks separately (requires Python `requests`, PyYAML, and Helm):
+
+```bash
+python3 -m unittest discover -s tests/unit -v
+```
 
 API lifecycle reference:
 [MaaS API key management](https://opendatahub-io.github.io/models-as-a-service/v2.0.1/user-guide/api-key-management/).

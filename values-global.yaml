@@ -1,6 +1,10 @@
 global:
   pattern: maas
   singleArgoCD: true
+  tenant:
+    username: user1
+    group: premium-users
+    namespacePrefix: wksp
 
 main:
   variant: prod

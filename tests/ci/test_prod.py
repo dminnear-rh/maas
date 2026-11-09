@@ -1,3 +1,4 @@
+from contextlib import closing
 import time
 
 import pytest
@@ -168,3 +169,118 @@ def test_maas_token_rate_limit(openshift_dyn_client, maas_api_session, maas_endp
     assert limited, "Exceeding 1000 tokens/second was not rate-limited (expected HTTP 429)"
     time.sleep(1.1)
     assert complete(small).status_code == 200, "Inference did not recover after the one-second rate window"
+
+
+@pytest.mark.parametrize("openshift_dyn_client", ["VP_HUBCONFIG"], indirect=True)
+def test_tenant_login_and_permissions(tenant_identity):
+    __tracebackhide__ = True
+    from .tenant_helpers import allowed, provision
+
+    tenant = tenant_identity
+    config = tenant['config']
+    identity = provision.request(tenant['http'], 'GET', tenant['host'] + '/apis/user.openshift.io/v1/users/~').json()
+    assert identity['metadata']['name'] == config['username']
+    group = tenant['kube'].get('/apis/user.openshift.io/v1/groups/' + config['group'])
+    assert config['username'] in group['users']
+    assert allowed(tenant['http'], tenant['host'], config['workspaceNamespace'], 'create', 'pods')
+    assert not allowed(tenant['http'], tenant['host'], config['controlNamespace'], 'get', 'secrets')
+    assert not allowed(tenant['http'], tenant['host'], '', 'create', 'clusterrolebindings', 'rbac.authorization.k8s.io')
+
+
+@pytest.mark.parametrize("openshift_dyn_client", ["VP_HUBCONFIG"], indirect=True)
+def test_tenant_premium_maas(tenant_identity, maas_endpoint, maas_completion):
+    __tracebackhide__ = True
+    from uuid import uuid4
+    from .tenant_helpers import provision
+
+    with provision.session(maas_endpoint['verify']) as management, provision.session(maas_endpoint['verify']) as inference:
+        management.headers.update(tenant_identity['http'].headers)
+        created = provision.request(management, 'POST', maas_endpoint['api_url'], allowed=(201,), json={
+            'name': 'tenant-ci-' + uuid4().hex[:12], 'expiresIn': '1h',
+            'subscription': tenant_identity['config']['subscription'],
+        }).json()
+        assert created.get('id'), 'MaaS did not return a key ID'
+        try:
+            assert created.get('key'), 'MaaS did not return a key'
+            inference.headers['Authorization'] = 'Bearer ' + created['key']
+            result = provision.request(inference, 'POST', maas_endpoint['url'] + '/v1/completions', json=maas_completion).json()
+            assert result['choices'][0]['text'].strip()
+        finally:
+            provision.request(management, 'DELETE', maas_endpoint['api_url'] + '/' + created['id'], allowed=(200, 204))
+
+
+@pytest.mark.parametrize("openshift_dyn_client", ["VP_HUBCONFIG"], indirect=True)
+def test_tenant_devspaces_inference(tenant_identity):
+    __tracebackhide__ = True
+    from kubernetes import client
+    from kubernetes.stream import stream
+    from .tenant_helpers import provision
+
+    config = tenant_identity['config']
+    core = client.CoreV1Api(tenant_identity['api_client'])
+    path = f"/apis/workspace.devfile.io/v1alpha2/namespaces/{config['workspaceNamespace']}/devworkspaces/{config['workspace']}"
+    workspace = provision.request(tenant_identity['http'], 'GET', tenant_identity['host'] + path).json()
+    assert workspace['spec']['started'], 'Start the tenant workspace before running its integration test'
+    assert workspace.get('status', {}).get('phase') == 'Running', 'Tenant workspace is not Running'
+    pods = core.list_namespaced_pod(config['workspaceNamespace'], label_selector=(
+        'controller.devfile.io/devworkspace_id=' + workspace['status']['devworkspaceId'])).items
+    assert len(pods) == 1, 'Expected one tenant workspace Pod'
+    pod = pods[0]
+    container = next(c.name for c in pod.spec.containers if any(
+        e.name == 'MAAS_API_KEY_FILE' for e in c.env or []))
+    # Only filenames are sent in the exec command. The tenant reads its own key.
+    script = '''import json, os, pathlib, ssl, urllib.request
+body = json.dumps({"model": os.environ["MAAS_MODEL"], "prompt": "Say hello", "max_tokens": 8, "stream": False}).encode()
+key = pathlib.Path(os.environ["MAAS_API_KEY_FILE"]).read_text().strip()
+req = urllib.request.Request(os.environ["MAAS_BASE_URL"].rstrip("/") + "/completions", data=body,
+    headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+with urllib.request.urlopen(req, context=ssl.create_default_context(cafile=os.environ["MAAS_CA_FILE"]), timeout=120) as response:
+    result = json.load(response)
+assert result["choices"][0]["text"].strip()
+print("tenant-workspace-inference-ok")
+'''
+    with closing(stream(core.connect_get_namespaced_pod_exec, pod.metadata.name, config['workspaceNamespace'],
+                container=container, command=['python3', '-c', script], stderr=True, stdout=True,
+                stdin=False, tty=False, _preload_content=False)) as websocket:
+        websocket.run_forever(timeout=150)
+        output = websocket.read_stdout()
+        assert websocket.returncode == 0, 'Inference inside the tenant workspace failed'
+        assert 'tenant-workspace-inference-ok' in output
+
+
+@pytest.mark.parametrize("openshift_dyn_client", ["VP_HUBCONFIG"], indirect=True)
+def test_tenant_playground_and_rocketchat(tenant_identity):
+    __tracebackhide__ = True
+    from kubernetes import client
+    from urllib.parse import urlsplit
+    from .mcp_helpers import forwarded_service
+    from .tenant_helpers import provision
+
+    tenant = tenant_identity
+    config = tenant['config']
+    if config['playgroundEnabled']:
+        ns = config['workspaceNamespace']
+        ogx = tenant['kube'].get(f"/apis/ogx.io/v1beta1/namespaces/{ns}/ogxservers/{config['playground']}")
+        assert ogx.get('status', {}).get('phase') == 'Ready', 'Tenant playground is not Ready'
+        endpoint = urlsplit(ogx['status']['serviceURL'])
+        with forwarded_service(endpoint.hostname.split('.')[0], endpoint.port or 8321, namespace=ns) as base:
+            with provision.session() as http:
+                provision.playground_completion(http, base, config['model'])
+        # The database Pod checks the extension explicitly rather than just accepting TCP.
+        pods = client.CoreV1Api(tenant['api_client']).list_namespaced_pod(
+            ns, label_selector='app=genai-pgvector').items
+        assert len(pods) == 1
+        statuses = pods[0].status.container_statuses
+        assert statuses and all(status.ready for status in statuses)
+    if config['rocketchatEnabled']:
+        credentials = provision.decode(tenant['kube'].secret(config['controlNamespace'], 'tenant-credentials'))
+        endpoint = urlsplit(config['rocketchatUrl'])
+        parts = endpoint.hostname.split('.')
+        with forwarded_service(parts[0], endpoint.port or 80, namespace=parts[1]) as base:
+            with provision.session() as http:
+                result = provision.request(http, 'POST', base + '/api/v1/login', json={
+                    'user': config['username'], 'password': credentials['password'],
+                }).json()
+                assert result.get('status') == 'success', 'Rocket.Chat tenant login failed'
+                http.headers.update({'X-Auth-Token': result['data']['authToken'], 'X-User-Id': result['data']['userId']})
+                provision.request(http, 'POST', base + '/api/v1/logout')

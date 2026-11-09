@@ -1,0 +1,66 @@
+---
+kind: DevWorkspace
+apiVersion: workspace.devfile.io/v1alpha2
+metadata:
+  name: {{ .Values.devworkspace.name }}
+  namespace: {{ .Values.global.tenant.namespacePrefix }}-{{ .Values.global.tenant.username }}
+  labels:
+    {{- include "workspace.labels" . | nindent 4 }}
+  {{- with .Values.devworkspace.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  routingClass: che
+  started: true
+  contributions:
+    - name: editor
+      uri: http://devspaces-dashboard.openshift-devspaces.svc.cluster.local:8080/dashboard/api/editors/devfile?che-editor=che-incubator/che-code/latest
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: openshift-devspaces
+      controller.devfile.io/scc: container-build
+      controller.devfile.io/storage-type: per-user
+    projects:
+      - name: {{ .Values.devworkspace.name }}
+        git:
+          remotes:
+            origin: {{ .Values.devworkspace.projects.repoUrl }}
+          checkoutFrom:
+            revision: {{ .Values.devworkspace.projects.revision }}
+    components:
+      {{- if .Values.devworkspace.components }}
+      {{- range .Values.devworkspace.components }}
+      - name: {{ .name }}
+        container:
+          image: {{ .container.image }}
+          sourceMapping: {{ .container.sourceMapping | default "/projects" }}
+          env:
+            - name: CHE_DASHBOARD_URL
+              value: https://devspaces.{{ $.Values.global.localClusterDomain }}
+            - name: MAAS_BASE_URL
+              value: {{ $.Values.playground.maasBaseUrl | default (printf "https://maas.%s/v1" $.Values.global.localClusterDomain) | quote }}
+            - name: MAAS_API_KEY_FILE
+              value: /etc/maas/api-key
+            - name: MAAS_CA_FILE
+              value: /etc/maas/ca.crt
+            - name: MAAS_MODEL
+              value: {{ printf "publishers/llm/models/%s" $.Values.playground.model | quote }}
+            {{- with .container.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .container.resources }}
+          {{- toYaml . | nindent 10 }}
+          {{- end}}
+      {{- end }}
+      {{- else if .Values.devworkspace.image }}
+      - name: dev-container
+        container:
+          image: {{ .Values.devworkspace.image }}
+          sourceMapping: /projects
+          env:
+            - name: CHE_DASHBOARD_URL
+              value: https://devspaces.{{ .Values.global.localClusterDomain }}
+      {{- end }}

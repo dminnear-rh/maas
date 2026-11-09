@@ -1,3 +1,5 @@
 tests/ci/__pycache__
 tests/ci/.pytest_cache
 tests/ci/.results
+charts/**/__pycache__/
+tests/unit/__pycache__/
