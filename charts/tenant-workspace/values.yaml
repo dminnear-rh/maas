@@ -1,0 +1,53 @@
+global:
+  localClusterDomain: apps.cluster.example.com
+  tenant:
+    username: user1
+    group: premium-users
+    namespacePrefix: wksp
+secretStore:
+  name: vault-backend
+  kind: ClusterSecretStore
+secrets:
+  htpasswdKey: secret/data/global/htpasswd
+  tenantKey: secret/data/global/tenant
+  refreshInterval: 2m
+playground:
+  enabled: true
+  name: lsd-genai-playground
+  maxTokens: "16384"
+  model: nemotron-3-nano-30b-a3b
+  maasBaseUrl: ""
+devworkspace:
+  name: exercises
+  projects:
+    repoUrl: https://github.com/jharmison-redhat/coding-exercises.git
+    revision: main
+  annotations:
+    che.eclipse.org/che-editor: che-incubator/che-code/latest
+    che.eclipse.org/devfile: |
+      schemaVersion: 2.2.0
+  components:
+    - name: universal-developer-image
+      container:
+        image: registry.redhat.io/devspaces/udi-rhel9:3.30
+        sourceMapping: /projects
+        resources:
+          memoryRequest: 4Gi
+          memoryLimit: 4Gi
+          cpuRequest: "1"
+          cpuLimit: "2"
+rocketchat:
+  enabled: true
+  url: http://rocketchat-rocketchat.rocketchat.svc.cluster.local
+  namespace: rocketchat
+  deployment: rocketchat-rocketchat
+  container: rocketchat
+provisioner:
+  image: quay.io/validatedpatterns/utility-container:latest
+  schedule: "*/10 * * * *"
+  subscription: maas-premium-subscription
+  renewBeforeSeconds: 1200
+  readinessTimeoutSeconds: 1200
+  # Cold GPU provisioning, image downloads, and model loading can exceed 20m.
+  startupReadinessTimeoutSeconds: 5400
+  startupDeadlineSeconds: 7200

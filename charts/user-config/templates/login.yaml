@@ -1,0 +1,41 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: htpasswd-secret-es
+  namespace: openshift-config
+spec:
+  refreshPolicy: {{ .Values.htpasswd.refreshPolicy }}
+  secretStoreRef:
+    name: {{ .Values.secretStore.name }}
+    kind: {{ .Values.secretStore.kind }}
+  target:
+    name: {{ .Values.htpasswd.secretName }}
+    template:
+      engineVersion: v2
+      type: Opaque
+      data:
+        htpasswd: {{ printf "{{ htpasswd %q .password \"bcrypt\" }}" .Values.global.tenant.username | quote }}
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.htpasswd.vaultKey }}
+        property: {{ .Values.global.tenant.username | quote }}
+---
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  identityProviders:
+    - name: {{ .Values.htpasswd.providerName }}
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: {{ .Values.htpasswd.secretName }}
+    {{- with .Values.additionalIdentityProviders }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}

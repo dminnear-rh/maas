@@ -1,0 +1,15 @@
+global:
+  tenant:
+    username: user1
+secretStore:
+  name: vault-backend
+  kind: ClusterSecretStore
+htpasswd:
+  vaultKey: secret/data/global/htpasswd
+  # Bcrypt uses a random salt. Periodic refresh would change the hash and roll
+  # OpenShift authentication even when the Vault password has not changed.
+  refreshPolicy: OnChange
+  providerName: htpasswd_provider
+  secretName: htpasswd-secret
+# Include existing providers before installing on a cluster with login providers.
+additionalIdentityProviders: []

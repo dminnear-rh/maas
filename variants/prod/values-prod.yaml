@@ -1,6 +1,9 @@
 clusterGroup:
   name: prod
 
+  sharedValueFiles:
+    - /variants/prod/overrides/values-{{ $.Values.global.clusterPlatform }}-gpu.yaml
+
   namespaces:
     external-secrets:
     external-secrets-operator:
@@ -14,6 +17,7 @@ clusterGroup:
     lls-demo:
     rocketchat:
     llm:
+    tenant-provisioning:
 
   subscriptions:
     cert-manager:
@@ -25,6 +29,40 @@ clusterGroup:
       channel: stable-v1
 
   applications:
+    user-config:
+      name: user-config
+      namespace: openshift-config
+      path: charts/user-config
+
+    tenant-workspace:
+      name: tenant-workspace
+      namespace: tenant-provisioning
+      path: charts/tenant-workspace
+      ignoreDifferences:
+      - group: workspace.devfile.io
+        kind: DevWorkspace
+        jsonPointers:
+        - /spec/started
+      - group: ""
+        kind: Secret
+        name: maas-api-key
+        jsonPointers:
+        - /data
+      - group: ""
+        kind: Secret
+        name: rocketchat-user-credentials
+        jsonPointers:
+        - /data
+      - group: ""
+        kind: Secret
+        name: tenant-provisioner-state
+        jsonPointers:
+        - /data
+      - group: ogx.io
+        kind: OGXServer
+        jqPathExpressions:
+        - '.spec.workload.overrides.env[] | select(.name == "MAAS_KEY_GENERATION")'
+
     openshift-external-secrets:
       name: openshift-external-secrets
       namespace: external-secrets

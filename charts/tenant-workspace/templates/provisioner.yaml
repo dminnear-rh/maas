@@ -1,0 +1,110 @@
+{{- $ns := printf "%s-%s" .Values.global.tenant.namespacePrefix .Values.global.tenant.username }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-provisioner
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tenant-provisioner-state
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maas-api-key
+  namespace: {{ $ns }}
+  labels:
+    controller.devfile.io/mount-to-devworkspace: "true"
+    controller.devfile.io/watch-secret: "true"
+  annotations:
+    controller.devfile.io/mount-as: file
+    controller.devfile.io/mount-path: /etc/maas
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rocketchat-user-credentials
+  namespace: {{ $ns }}
+type: Opaque
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tenant-credentials
+spec:
+  refreshInterval: {{ .Values.secrets.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.secretStore.name }}
+    kind: {{ .Values.secretStore.kind }}
+  target:
+    name: tenant-credentials
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.secrets.htpasswdKey }}
+        property: {{ .Values.global.tenant.username | quote }}
+{{- if .Values.playground.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: genai-pgvector-credentials
+  namespace: {{ $ns }}
+spec:
+  refreshInterval: {{ .Values.secrets.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.secretStore.name }}
+    kind: {{ .Values.secretStore.kind }}
+  target:
+    name: genai-pgvector-credentials
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.secrets.tenantKey }}
+        property: pgvector-password
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-provisioner
+data:
+  config.json: {{ include "workspace.config" . | quote }}
+  provision.py: |
+    {{- .Files.Get "files/provision.py" | nindent 4 }}
+---
+# Run alongside the resources: PostSync would wait for consumers needing this
+# hook's MaaS key. A Sync hook can be recreated by Argo's sync retries.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tenant-setup-{{ printf "%s%s" (toJson .Values) (.Files.Get "files/provision.py") | sha256sum | trunc 10 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: {{ .Values.provisioner.startupDeadlineSeconds }}
+  template:
+    spec:
+      {{- include "workspace.provisionerPod" (dict "root" . "startup" true) | nindent 6 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tenant-provisioner
+spec:
+  schedule: {{ .Values.provisioner.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1440
+      template:
+        spec:
+          {{- include "workspace.provisionerPod" (dict "root" . "startup" false) | nindent 10 }}

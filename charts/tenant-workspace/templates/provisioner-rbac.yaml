@@ -1,0 +1,152 @@
+{{- $ns := printf "%s-%s" .Values.global.tenant.namespacePrefix .Values.global.tenant.username }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-provisioner
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [tenant-credentials, tenant-provisioner-state]
+    verbs: [get, patch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    resourceNames: [tenant-provisioner]
+    verbs: [get, update]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-provisioner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tenant-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: tenant-provisioner
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-provisioner
+  namespace: {{ $ns }}
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [maas-api-key, rocketchat-user-credentials]
+    verbs: [get, patch]
+  - apiGroups: [workspace.devfile.io]
+    resources: [devworkspaces]
+    resourceNames: [{{ .Values.devworkspace.name | quote }}]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  - apiGroups: [ogx.io]
+    resources: [ogxservers]
+    resourceNames: [{{ .Values.playground.name | quote }}]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-provisioner
+  namespace: {{ $ns }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tenant-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: tenant-provisioner
+    namespace: {{ .Release.Namespace }}
+{{- range $entry := list (dict "namespace" "openshift-config-managed" "apiGroup" "" "resource" "configmaps" "name" "default-ingress-cert") (dict "namespace" "openshift-authentication" "apiGroup" "route.openshift.io" "resource" "routes" "name" "oauth-openshift") (dict "namespace" "openshift-ingress" "apiGroup" "gateway.networking.k8s.io" "resource" "gateways" "name" "maas-default-gateway") (dict "namespace" "openshift-ingress" "apiGroup" "" "resource" "secrets" "name" "") (dict "namespace" "llm" "apiGroup" "serving.kserve.io" "resource" "llminferenceservices" "name" "") }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-discovery-{{ $entry.resource }}
+  namespace: {{ $entry.namespace }}
+rules:
+  - apiGroups: [{{ $entry.apiGroup | quote }}]
+    resources: [{{ $entry.resource }}]
+    {{- if $entry.name }}
+    resourceNames: [{{ $entry.name }}]
+    {{- end }}
+    verbs: [get{{ if eq $entry.resource "llminferenceservices" }}, list{{ end }}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-discovery-{{ $entry.resource }}
+  namespace: {{ $entry.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tenant-discovery-{{ $entry.resource }}
+subjects:
+  - kind: ServiceAccount
+    name: tenant-provisioner
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- if .Values.rocketchat.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-rocketchat-discovery
+  namespace: {{ .Values.rocketchat.namespace }}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [{{ .Values.rocketchat.deployment | quote }}]
+    verbs: [get]
+  # Credential references are resolved from the deployed container environment.
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-rocketchat-discovery
+  namespace: {{ .Values.rocketchat.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tenant-rocketchat-discovery
+subjects:
+  - kind: ServiceAccount
+    name: tenant-provisioner
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: maas-tenant-provisioner
+rules:
+  - apiGroups: [user.openshift.io]
+    resources: [groups]
+    resourceNames: [{{ .Values.global.tenant.group | quote }}]
+    verbs: [get, update]
+  - apiGroups: [oauth.openshift.io]
+    resources: [oauthaccesstokens]
+    verbs: [delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: maas-tenant-provisioner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: maas-tenant-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: tenant-provisioner
+    namespace: {{ .Release.Namespace }}
